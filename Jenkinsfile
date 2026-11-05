@@ -1,3 +1,4 @@
+
 pipeline {
     agent any
 
@@ -34,14 +35,23 @@ pipeline {
                 }
             }
         }
+
+        stage('Docker Build') {
+            steps {
+                sh '/opt/homebrew/bin/docker build -t lavanyapc/campusconnect:${BUILD_NUMBER} .'
+                sh '/opt/homebrew/bin/docker tag lavanyapc/campusconnect:${BUILD_NUMBER} lavanyapc/campusconnect:latest'
+            }
+        }
     }
 
     post {
         success {
             echo 'CampusConnect pipeline completed successfully!'
         }
+
         failure {
             echo 'CampusConnect pipeline failed. Check the console output.'
         }
     }
 }
+
