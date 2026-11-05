@@ -42,6 +42,23 @@ pipeline {
                 sh '/opt/homebrew/bin/docker tag lavanyapc/campusconnect:${BUILD_NUMBER} lavanyapc/campusconnect:latest'
             }
         }
+
+        stage('Docker Push') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKERHUB_USERNAME',
+                        passwordVariable: 'DOCKERHUB_TOKEN'
+                    )
+                ]) {
+                    sh 'echo "$DOCKERHUB_TOKEN" | /opt/homebrew/bin/docker login -u "$DOCKERHUB_USERNAME" --password-stdin'
+                    sh '/opt/homebrew/bin/docker push lavanyapc/campusconnect:${BUILD_NUMBER}'
+                    sh '/opt/homebrew/bin/docker push lavanyapc/campusconnect:latest'
+                    sh '/opt/homebrew/bin/docker logout'
+                }
+            }
+        }
     }
 
     post {
