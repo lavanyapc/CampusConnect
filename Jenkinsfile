@@ -2,12 +2,21 @@
 pipeline {
     agent any
 
+    options {
+        skipDefaultCheckout(true)
+    }
+
     environment {
-        DB_URL = 'jdbc:postgresql://localhost:5432/campusconnect'
         PATH = "/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin:/usr/local/bin:${env.PATH}"
+        ACR_NAME = "campusconnectacr"
+        ACR_LOGIN_SERVER = "campusconnectacr.azurecr.io"
+        IMAGE_NAME = "campusconnect"
+        KUBE_CONTEXT = "campusconnect-aks"
+        KUBECONFIG = "/Users/lavanya/.kube/config"
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 checkout scm
@@ -28,11 +37,15 @@ pipeline {
         stage('Build') {
             steps {
                 withCredentials([
-                    string(credentialsId: 'campus-db-username', variable: 'DB_USERNAME'),
-                    string(credentialsId: 'campus-db-password', variable: 'DB_PASSWORD')
+                    string(credentialsId: 'campus-db-username',
+                           variable: 'DB_USERNAME'),
+                    string(credentialsId: 'campus-db-password',
+                           variable: 'DB_PASSWORD')
                 ]) {
-                    sh 'chmod +x mvnw'
-                    sh './mvnw clean package -DskipTests'
+                    sh '''
+                        chmod +x mvnw
+                        ./mvnw clean package -DskipTests
+                    '''
                 }
             }
         }
@@ -40,8 +53,10 @@ pipeline {
         stage('Test') {
             steps {
                 withCredentials([
-                    string(credentialsId: 'campus-db-username', variable: 'DB_USERNAME'),
-                    string(credentialsId: 'campus-db-password', variable: 'DB_PASSWORD')
+                    string(credentialsId: 'campus-db-username',
+                           variable: 'DB_USERNAME'),
+                    string(credentialsId: 'campus-db-password',
+                           variable: 'DB_PASSWORD')
                 ]) {
                     sh './mvnw test'
                 }
@@ -50,56 +65,115 @@ pipeline {
 
         stage('Docker Build') {
             steps {
-                sh '/usr/local/bin/docker build -t lavanyapc/campusconnect:${BUILD_NUMBER} .'
-                sh '/usr/local/bin/docker tag lavanyapc/campusconnect:${BUILD_NUMBER} lavanyapc/campusconnect:latest'
+                sh '''
+                    /usr/local/bin/docker buildx build \
+                    --platform linux/amd64 \
+                    -t ${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${BUILD_NUMBER} \
+                    -t ${ACR_LOGIN_SERVER}/${IMAGE_NAME}:latest \
+                    --load .
+                '''
             }
         }
 
-        stage('Docker Push') {
+        stage('Docker Push to ACR') {
             steps {
                 withCredentials([
                     usernamePassword(
-                        credentialsId: 'dockerhub-credentials',
-                        usernameVariable: 'DOCKERHUB_USERNAME',
-                        passwordVariable: 'DOCKERHUB_TOKEN'
+                        credentialsId: 'acr-service-principal',
+                        usernameVariable: 'ACR_CLIENT_ID',
+                        passwordVariable: 'ACR_CLIENT_SECRET'
                     )
                 ]) {
                     sh '''
-                        echo "$DOCKERHUB_TOKEN" | /usr/local/bin/docker login \
-                        -u "$DOCKERHUB_USERNAME" --password-stdin
+                        echo "$ACR_CLIENT_SECRET" | \
+                        /usr/local/bin/docker login ${ACR_LOGIN_SERVER} \
+                        --username "$ACR_CLIENT_ID" \
+                        --password-stdin
+
+                        /usr/local/bin/docker push \
+                        ${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${BUILD_NUMBER}
+
+                        /usr/local/bin/docker push \
+                        ${ACR_LOGIN_SERVER}/${IMAGE_NAME}:latest
+
+                        /usr/local/bin/docker logout ${ACR_LOGIN_SERVER}
                     '''
-                    sh '/usr/local/bin/docker push lavanyapc/campusconnect:${BUILD_NUMBER}'
-                    sh '/usr/local/bin/docker push lavanyapc/campusconnect:latest'
-                    sh '/usr/local/bin/docker logout'
                 }
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        stage('Deploy to Azure AKS') {
             steps {
-                sh '/opt/homebrew/bin/kubectl apply -f k8s/database.yaml'
-                sh '/opt/homebrew/bin/kubectl apply -f k8s/database-service.yaml'
-                sh '/opt/homebrew/bin/kubectl apply -f k8s/deployment.yaml'
-                sh '/opt/homebrew/bin/kubectl apply -f k8s/service.yaml'
+                sh '''
+                    export KUBECONFIG=/Users/lavanya/.kube/config
 
-                sh '/opt/homebrew/bin/kubectl set image deployment/campusconnect-app campusconnect=lavanyapc/campusconnect:${BUILD_NUMBER}'
+                    /opt/homebrew/bin/kubectl config use-context ${KUBE_CONTEXT}
 
-                sh '/opt/homebrew/bin/kubectl rollout status deployment/campusconnect-app --timeout=180s'
+                    /opt/homebrew/bin/kubectl apply -f k8s/database.yaml
+                    /opt/homebrew/bin/kubectl apply -f k8s/database-service.yaml
+                    /opt/homebrew/bin/kubectl apply -f k8s/deployment.yaml
+                    /opt/homebrew/bin/kubectl apply -f k8s/service.yaml
+
+                    /opt/homebrew/bin/kubectl set image \
+                    deployment/campusconnect-app \
+                    campusconnect=${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${BUILD_NUMBER}
+
+                    /opt/homebrew/bin/kubectl rollout status \
+                    deployment/campusconnect-app --timeout=300s
+                '''
             }
         }
 
         stage('Verify Deployment') {
             steps {
-                sh '/opt/homebrew/bin/kubectl get deployments'
-                sh '/opt/homebrew/bin/kubectl get pods'
-                sh '/opt/homebrew/bin/kubectl get services'
+                sh '''
+                    echo "Current Kubernetes context:"
+                    /opt/homebrew/bin/kubectl config current-context
+
+                    echo "Deployments:"
+                    /opt/homebrew/bin/kubectl get deployments
+
+                    echo "Pods:"
+                    /opt/homebrew/bin/kubectl get pods
+
+                    echo "Services:"
+                    /opt/homebrew/bin/kubectl get services
+
+                    echo "Application image:"
+                    /opt/homebrew/bin/kubectl get deployment campusconnect-app \
+                    -o jsonpath='{.spec.template.spec.containers[0].image}'
+
+                    echo ""
+
+                    APP_IP=$(/opt/homebrew/bin/kubectl get service \
+                    campusconnect-service \
+                    -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+                    echo "CampusConnect URL: http://${APP_IP}"
+
+                    i=1
+                    while [ "$i" -le 12 ]; do
+                        if curl -fsS --max-time 10 \
+                        "http://${APP_IP}/" -o /dev/null; then
+                            echo "Application endpoint is accessible."
+                            exit 0
+                        fi
+
+                        echo "Waiting for application endpoint..."
+                        sleep 10
+                        i=$((i + 1))
+                    done
+
+                    echo "Application endpoint verification failed."
+                    exit 1
+                '''
             }
         }
     }
 
     post {
         success {
-            echo 'CampusConnect pipeline completed successfully!'
+            echo 'CampusConnect Azure CI/CD pipeline completed successfully!'
         }
 
         failure {

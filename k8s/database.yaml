@@ -1,4 +1,14 @@
-
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: campusconnect-db-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -31,4 +41,12 @@ spec:
                 secretKeyRef:
                   name: campusconnect-db-secret
                   key: DB_PASSWORD
-
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: campusconnect-db-pvc
