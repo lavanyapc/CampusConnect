@@ -1,0 +1,41 @@
+---
+- name: Deploy CampusConnect to Azure AKS
+  hosts: local
+  gather_facts: false
+
+  vars:
+    image_tag: latest
+    acr_image: campusconnectacr.azurecr.io/campusconnect
+
+  tasks:
+    - name: Select Azure AKS context
+      command: kubectl config use-context campusconnect-aks
+
+    - name: Apply PostgreSQL configuration
+      command: kubectl apply -f k8s/database.yaml
+      args:
+        chdir: "{{ playbook_dir }}/.."
+
+    - name: Apply PostgreSQL service
+      command: kubectl apply -f k8s/database-service.yaml
+      args:
+        chdir: "{{ playbook_dir }}/.."
+
+    - name: Apply CampusConnect deployment
+      command: kubectl apply -f k8s/deployment.yaml
+      args:
+        chdir: "{{ playbook_dir }}/.."
+
+    - name: Apply CampusConnect service
+      command: kubectl apply -f k8s/service.yaml
+      args:
+        chdir: "{{ playbook_dir }}/.."
+
+    - name: Deploy versioned ACR image
+      command: kubectl set image deployment/campusconnect-app campusconnect={{ acr_image }}:{{ image_tag }}
+
+    - name: Wait for application rollout
+      command: kubectl rollout status deployment/campusconnect-app --timeout=300s
+
+    - name: Verify Kubernetes pods
+      command: kubectl get pods

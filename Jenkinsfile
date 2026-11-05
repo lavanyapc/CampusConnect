@@ -8,9 +8,11 @@ pipeline {
 
     environment {
         PATH = "/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin:/usr/local/bin:${env.PATH}"
+
         ACR_NAME = "campusconnectacr"
         ACR_LOGIN_SERVER = "campusconnectacr.azurecr.io"
         IMAGE_NAME = "campusconnect"
+
         KUBE_CONTEXT = "campusconnect-aks"
         KUBECONFIG = "/Users/lavanya/.kube/config"
     }
@@ -86,7 +88,8 @@ pipeline {
                 ]) {
                     sh '''
                         echo "$ACR_CLIENT_SECRET" | \
-                        /usr/local/bin/docker login ${ACR_LOGIN_SERVER} \
+                        /usr/local/bin/docker login \
+                        ${ACR_LOGIN_SERVER} \
                         --username "$ACR_CLIENT_ID" \
                         --password-stdin
 
@@ -107,19 +110,10 @@ pipeline {
                 sh '''
                     export KUBECONFIG=/Users/lavanya/.kube/config
 
-                    /opt/homebrew/bin/kubectl config use-context ${KUBE_CONTEXT}
-
-                    /opt/homebrew/bin/kubectl apply -f k8s/database.yaml
-                    /opt/homebrew/bin/kubectl apply -f k8s/database-service.yaml
-                    /opt/homebrew/bin/kubectl apply -f k8s/deployment.yaml
-                    /opt/homebrew/bin/kubectl apply -f k8s/service.yaml
-
-                    /opt/homebrew/bin/kubectl set image \
-                    deployment/campusconnect-app \
-                    campusconnect=${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${BUILD_NUMBER}
-
-                    /opt/homebrew/bin/kubectl rollout status \
-                    deployment/campusconnect-app --timeout=300s
+                    /opt/homebrew/bin/ansible-playbook \
+                    -i ansible/inventory.ini \
+                    ansible/deploy.yml \
+                    -e image_tag=${BUILD_NUMBER}
                 '''
             }
         }
@@ -127,6 +121,8 @@ pipeline {
         stage('Verify Deployment') {
             steps {
                 sh '''
+                    export KUBECONFIG=/Users/lavanya/.kube/config
+
                     echo "Current Kubernetes context:"
                     /opt/homebrew/bin/kubectl config current-context
 
@@ -139,14 +135,12 @@ pipeline {
                     echo "Services:"
                     /opt/homebrew/bin/kubectl get services
 
-                    echo "Application image:"
+                    echo "Deployed application image:"
                     /opt/homebrew/bin/kubectl get deployment campusconnect-app \
                     -o jsonpath='{.spec.template.spec.containers[0].image}'
-
                     echo ""
 
-                    APP_IP=$(/opt/homebrew/bin/kubectl get service \
-                    campusconnect-service \
+                    APP_IP=$(/opt/homebrew/bin/kubectl get service campusconnect-service \
                     -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 
                     echo "CampusConnect URL: http://${APP_IP}"
