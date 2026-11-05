@@ -4,7 +4,7 @@ pipeline {
 
     environment {
         DB_URL = 'jdbc:postgresql://localhost:5432/campusconnect'
-        PATH = "/Applications/Docker.app/Contents/Resources/bin:/usr/local/bin:/opt/homebrew/bin:${env.PATH}"
+        PATH = "/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin:/usr/local/bin:${env.PATH}"
     }
 
     stages {
@@ -74,6 +74,27 @@ pipeline {
                 }
             }
         }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh '/opt/homebrew/bin/kubectl apply -f k8s/database.yaml'
+                sh '/opt/homebrew/bin/kubectl apply -f k8s/database-service.yaml'
+                sh '/opt/homebrew/bin/kubectl apply -f k8s/deployment.yaml'
+                sh '/opt/homebrew/bin/kubectl apply -f k8s/service.yaml'
+
+                sh '/opt/homebrew/bin/kubectl set image deployment/campusconnect-app campusconnect=lavanyapc/campusconnect:${BUILD_NUMBER}'
+
+                sh '/opt/homebrew/bin/kubectl rollout status deployment/campusconnect-app --timeout=180s'
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                sh '/opt/homebrew/bin/kubectl get deployments'
+                sh '/opt/homebrew/bin/kubectl get pods'
+                sh '/opt/homebrew/bin/kubectl get services'
+            }
+        }
     }
 
     post {
@@ -86,4 +107,3 @@ pipeline {
         }
     }
 }
-
