@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    environment {
+        DB_URL = 'jdbc:postgresql://localhost:5432/campusconnect'
+    }
+
     stages {
         stage('Checkout') {
             steps {
@@ -10,14 +14,24 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh 'chmod +x mvnw'
-                sh './mvnw clean package -DskipTests'
+                withCredentials([
+                    string(credentialsId: 'campus-db-username', variable: 'DB_USERNAME'),
+                    string(credentialsId: 'campus-db-password', variable: 'DB_PASSWORD')
+                ]) {
+                    sh 'chmod +x mvnw'
+                    sh './mvnw clean package -DskipTests'
+                }
             }
         }
 
         stage('Test') {
             steps {
-                sh './mvnw test'
+                withCredentials([
+                    string(credentialsId: 'campus-db-username', variable: 'DB_USERNAME'),
+                    string(credentialsId: 'campus-db-password', variable: 'DB_PASSWORD')
+                ]) {
+                    sh './mvnw test'
+                }
             }
         }
     }
