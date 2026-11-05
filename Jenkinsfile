@@ -3,9 +3,9 @@ pipeline {
     agent any
 
     environment {
-        DB_URL = 'jdbc:postgresql://localhost:5432/campusconnect'
-    }
-
+    DB_URL = 'jdbc:postgresql://localhost:5432/campusconnect'
+    PATH = "/Applications/Docker.app/Contents/Resources/bin:/usr/local/bin:/opt/homebrew/bin:${env.PATH}"
+}
     stages {
         stage('Checkout') {
             steps {
