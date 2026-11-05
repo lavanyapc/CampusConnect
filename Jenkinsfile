@@ -3,13 +3,25 @@ pipeline {
     agent any
 
     environment {
-    DB_URL = 'jdbc:postgresql://localhost:5432/campusconnect'
-    PATH = "/Applications/Docker.app/Contents/Resources/bin:/usr/local/bin:/opt/homebrew/bin:${env.PATH}"
-}
+        DB_URL = 'jdbc:postgresql://localhost:5432/campusconnect'
+        PATH = "/Applications/Docker.app/Contents/Resources/bin:/usr/local/bin:/opt/homebrew/bin:${env.PATH}"
+    }
+
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
+            }
+        }
+
+        stage('Gitleaks Security Scan') {
+            steps {
+                sh '''
+                    /usr/local/bin/docker run --rm \
+                    -v "$WORKSPACE":/repo \
+                    zricethezav/gitleaks:latest \
+                    git /repo --redact --no-banner
+                '''
             }
         }
 
@@ -52,7 +64,10 @@ pipeline {
                         passwordVariable: 'DOCKERHUB_TOKEN'
                     )
                 ]) {
-                    sh 'echo "$DOCKERHUB_TOKEN" | /usr/local/bin/docker login -u "$DOCKERHUB_USERNAME" --password-stdin'
+                    sh '''
+                        echo "$DOCKERHUB_TOKEN" | /usr/local/bin/docker login \
+                        -u "$DOCKERHUB_USERNAME" --password-stdin
+                    '''
                     sh '/usr/local/bin/docker push lavanyapc/campusconnect:${BUILD_NUMBER}'
                     sh '/usr/local/bin/docker push lavanyapc/campusconnect:latest'
                     sh '/usr/local/bin/docker logout'
