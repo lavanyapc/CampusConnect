@@ -38,8 +38,8 @@ pipeline {
 
         stage('Docker Build') {
             steps {
-                sh '/opt/homebrew/bin/docker build -t lavanyapc/campusconnect:${BUILD_NUMBER} .'
-                sh '/opt/homebrew/bin/docker tag lavanyapc/campusconnect:${BUILD_NUMBER} lavanyapc/campusconnect:latest'
+                sh '/usr/local/bin/docker build -t lavanyapc/campusconnect:${BUILD_NUMBER} .'
+                sh '/usr/local/bin/docker tag lavanyapc/campusconnect:${BUILD_NUMBER} lavanyapc/campusconnect:latest'
             }
         }
 
@@ -52,10 +52,10 @@ pipeline {
                         passwordVariable: 'DOCKERHUB_TOKEN'
                     )
                 ]) {
-                    sh 'echo "$DOCKERHUB_TOKEN" | /opt/homebrew/bin/docker login -u "$DOCKERHUB_USERNAME" --password-stdin'
-                    sh '/opt/homebrew/bin/docker push lavanyapc/campusconnect:${BUILD_NUMBER}'
-                    sh '/opt/homebrew/bin/docker push lavanyapc/campusconnect:latest'
-                    sh '/opt/homebrew/bin/docker logout'
+                    sh 'echo "$DOCKERHUB_TOKEN" | /usr/local/bin/docker login -u "$DOCKERHUB_USERNAME" --password-stdin'
+                    sh '/usr/local/bin/docker push lavanyapc/campusconnect:${BUILD_NUMBER}'
+                    sh '/usr/local/bin/docker push lavanyapc/campusconnect:latest'
+                    sh '/usr/local/bin/docker logout'
                 }
             }
         }
