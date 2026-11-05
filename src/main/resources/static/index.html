@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CampusConnect | Smart Campus Notice Board</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <div class="logo">CampusConnect</div>
+        <p>One place for everything happening on campus.</p>
+    </header>
+
+    <main>
+        <section class="welcome">
+            <h1>Welcome to CampusConnect</h1>
+            <p>Stay informed. Stay connected. Never miss an update.</p>
+        </section>
+
+        <section class="notice-section">
+            <div class="section-heading">
+                <div>
+                    <h2>Campus Announcements</h2>
+                    <p>Latest updates from your campus</p>
+                </div>
+            </div>
+
+            <div id="noticeList" class="notice-list">
+                <p>Loading announcements...</p>
+            </div>
+        </section>
+
+        <section class="form-section">
+            <h2>Post a New Announcement</h2>
+
+            <form id="noticeForm">
+                <label for="title">Notice Title</label>
+                <input type="text" id="title" placeholder="Enter announcement title" required>
+
+                <label for="content">Announcement Details</label>
+                <textarea id="content" placeholder="Write your announcement..." required></textarea>
+
+                <label for="author">Posted By</label>
+                <input type="text" id="author" placeholder="Enter your name" required>
+
+                <button type="submit">Post Announcement</button>
+            </form>
+        </section>
+    </main>
+
+    <footer>
+        <p>CampusConnect &copy; 2026 | Smart Campus Notice Board</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
