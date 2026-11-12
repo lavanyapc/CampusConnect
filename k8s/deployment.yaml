@@ -1,33 +1,48 @@
+
 apiVersion: apps/v1
 kind: Deployment
+
 metadata:
   name: campusconnect-app
+
 spec:
-  replicas: 1
   selector:
     matchLabels:
       app: campusconnect-app
+
   template:
     metadata:
       labels:
         app: campusconnect-app
+
     spec:
       containers:
         - name: campusconnect
           image: campusconnectacr.azurecr.io/campusconnect:latest
           imagePullPolicy: Always
+
           ports:
             - containerPort: 8080
+
+          resources:
+            requests:
+              cpu: "100m"
+            limits:
+              cpu: "500m"
+
           env:
             - name: SERVER_PORT
               value: "8080"
+
             - name: DB_URL
               value: "jdbc:postgresql://campusconnect-db:5432/campusconnect"
+
             - name: DB_USERNAME
               valueFrom:
                 secretKeyRef:
                   name: campusconnect-db-secret
                   key: DB_USERNAME
+
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:

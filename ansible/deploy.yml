@@ -1,3 +1,4 @@
+
 ---
 - name: Deploy CampusConnect to Azure AKS
   hosts: local
@@ -36,6 +37,14 @@
 
     - name: Wait for application rollout
       command: kubectl rollout status deployment/campusconnect-app --timeout=300s
+
+    - name: Deploy CampusConnect Horizontal Pod Autoscaler
+      command: kubectl apply -f k8s/hpa.yaml
+      args:
+        chdir: "{{ playbook_dir }}/.."
+
+    - name: Verify HPA configuration
+      command: kubectl get hpa campusconnect-hpa
 
     - name: Verify Kubernetes pods
       command: kubectl get pods

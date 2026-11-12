@@ -1,5 +1,6 @@
 
 pipeline {
+
     agent any
 
     options {
@@ -8,11 +9,9 @@ pipeline {
 
     environment {
         PATH = "/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin:/usr/local/bin:${env.PATH}"
-
         ACR_NAME = "campusconnectacr"
         ACR_LOGIN_SERVER = "campusconnectacr.azurecr.io"
         IMAGE_NAME = "campusconnect"
-
         KUBE_CONTEXT = "campusconnect-aks"
         KUBECONFIG = "/Users/lavanya/.kube/config"
     }
@@ -118,6 +117,23 @@ pipeline {
             }
         }
 
+        stage('Verify HPA') {
+            steps {
+                sh '''
+                    export KUBECONFIG=/Users/lavanya/.kube/config
+
+                    echo "Current Kubernetes context:"
+                    /opt/homebrew/bin/kubectl config current-context
+
+                    echo "Horizontal Pod Autoscaler:"
+                    /opt/homebrew/bin/kubectl get hpa campusconnect-hpa
+
+                    echo "HPA configuration details:"
+                    /opt/homebrew/bin/kubectl describe hpa campusconnect-hpa
+                '''
+            }
+        }
+
         stage('Verify Deployment') {
             steps {
                 sh '''
@@ -138,6 +154,7 @@ pipeline {
                     echo "Deployed application image:"
                     /opt/homebrew/bin/kubectl get deployment campusconnect-app \
                     -o jsonpath='{.spec.template.spec.containers[0].image}'
+
                     echo ""
 
                     APP_IP=$(/opt/homebrew/bin/kubectl get service campusconnect-service \
@@ -146,6 +163,7 @@ pipeline {
                     echo "CampusConnect URL: http://${APP_IP}"
 
                     i=1
+
                     while [ "$i" -le 12 ]; do
                         if curl -fsS --max-time 10 \
                         "http://${APP_IP}/" -o /dev/null; then
